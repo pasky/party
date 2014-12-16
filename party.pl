@@ -27,6 +27,20 @@ my $nspace = [];
 sub wall_at { my ($x, $y) = @_; return ($space->[$y]->[$x] eq '#' or $space->[$y]->[$x] eq '!'); }
 sub free_at { my ($x, $y) = @_; return ($space->[$y]->[$x] ne '#' and $space->[$y]->[$x] ne '!' and $space->[$y]->[$x] ne 'P' and $space->[$y]->[$x] ne '%' and not defined $pspace->[$y]->[$x]); }
 
+sub swap_people {
+	my ($people, $i, $j) = @_;
+	my $x = $people->[$i]->{x};
+	my $y = $people->[$i]->{y};
+	my $y2 = $people->[$j]->{y};
+	my $x2 = $people->[$j]->{x};
+	$people->[$i]->{x} = $x2;
+	$people->[$i]->{y} = $y2;
+	$people->[$j]->{x} = $x;
+	$people->[$j]->{y} = $y;
+	$pspace->[$y2]->[$x2] = $i;
+	$pspace->[$y]->[$x] = $j;
+}
+
 sub tile_direction {
 	my ($cx, $cy, $tile, $name) = @_;
 	# BFS in space
@@ -243,14 +257,7 @@ toilet:
 				} elsif (defined $j and $people[$i]->{beers} > 4 and rand() < 0.5) {
 					# If it's a person in the way, swap positions if we are
 					# already desperate.
-					my $x = $people[$i]->{x};
-					my $y = $people[$i]->{y};
-					$people[$i]->{x} = $x2;
-					$people[$i]->{y} = $y2;
-					$people[$j]->{x} = $x;
-					$people[$j]->{y} = $y;
-					$pspace->[$y2]->[$x2] = $i;
-					$pspace->[$y]->[$x] = $j;
+					swap_people(\@people, $i, $j);
 				}
 				printi($i, "toilet queue: " . $people[$i]->{beers});
 				next person;
@@ -272,12 +279,18 @@ roaming:
 				goto toilet;
 			}
 roaming_no_toilet:
+			my $dog_escapes = rand() < 0.2;
 			for my $dy (-1, 0, 1) {
 				for my $dx (-1, 0, 1) {
 					my $j = $pspace->[$people[$i]->{y} + $dy]->[$people[$i]->{x} + $dx];
-					if ((defined $j and $j == 0) or $i == 0) {
-						# dog, stay!
+					if (defined $j and ($j == 0 and $i != 0)) {
+						# it is dog, stay!
+						printi($i, 'petting');
 						next person unless rand() < 0.01;
+					} elsif (defined $j and ($i == 0)) {
+						# I am dog, probably go
+						printi($i, 'petted');
+						next person unless $dog_escapes;
 					} elsif (defined $j and $people[$i]->{knows}->[$j]) {
 						# printi($i, " -- $j");
 						next person unless rand() < 0.05;
@@ -287,8 +300,16 @@ roaming_no_toilet:
 
 			$dx = $people[$i]->{dx}; $dx ||= (int rand(3)) - 1;
 			$dy = $people[$i]->{dy}; $dy ||= (int rand(3)) - 1;
-			if (not free_at($people[$i]->{x} + $dx, $people[$i]->{y} + $dy)) {
-				$people[$i]->{dx} = 0; $people[$i]->{dy} = 0;
+			my $y2 = $people[$i]->{y} + $dy;
+			my $x2 = $people[$i]->{x} + $dx;
+			if (not free_at($x2, $y2)) {
+				my $j = $pspace->[$y2]->[$x2];
+				if ($dog and defined $j) {
+					printi($i, '**SWAP**');
+					swap_people(\@people, $i, $j);
+				} else {
+					$people[$i]->{dx} = 0; $people[$i]->{dy} = 0;
+				}
 				# Wait in queue.
 				# printi($i, "stuck");
 				next person;
