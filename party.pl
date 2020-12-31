@@ -235,6 +235,7 @@ toilet:
 					$people[$i]->{state} = 'dead';
 					undef $pspace->[$people[$i]->{y}]->[$people[$i]->{x}];
 					$space->[$people[$i]->{y}]->[$people[$i]->{x}] = '+';
+					printi($i, "DIED");
 					next person;
 				} else {
 					printi($i, "in deadly danger: " . $people[$i]->{beers});
@@ -289,11 +290,15 @@ roaming_no_toilet:
 						next person unless rand() < 0.01;
 					} elsif (defined $j and ($i == 0)) {
 						# I am dog, probably go
-						printi($i, 'petted');
-						next person unless $dog_escapes;
+						unless ($dog_escapes) {
+							printi($i, 'petted');
+							next person;
+						}
 					} elsif (defined $j and $people[$i]->{knows}->[$j]) {
-						# printi($i, " -- $j");
-						next person unless rand() < 0.05;
+						unless (rand() < 0.05) {
+							printi($i, " -- $j");
+							next person;
+						}
 					}
 				}
 			}
@@ -305,13 +310,13 @@ roaming_no_toilet:
 			if (not free_at($x2, $y2)) {
 				my $j = $pspace->[$y2]->[$x2];
 				if ($dog and defined $j) {
-					printi($i, '**SWAP**');
+					# printi($i, '**SWAP**');
 					swap_people(\@people, $i, $j);
 				} else {
 					$people[$i]->{dx} = 0; $people[$i]->{dy} = 0;
 				}
 				# Wait in queue.
-				# printi($i, "stuck");
+				printi($i, "stuck");
 				next person;
 			}
 =brm
@@ -327,6 +332,8 @@ roaming_no_toilet:
 		$people[$i]->{x} += $dx; $people[$i]->{y} += $dy;
 		$people[$i]->{dx} = $dx; $people[$i]->{dy} = $dy;
 		$pspace->[$people[$i]->{y}]->[$people[$i]->{x}] = $i;
+
+		printi($i, "roaming");
 	}
 
 	if ($nomcounter++ > 1000) {
