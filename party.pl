@@ -119,7 +119,7 @@ my $nomcounter = 0;
 
 while (1) {
 	use Time::HiRes;
-	Time::HiRes::usleep(100000);
+	Time::HiRes::usleep(200000);
 
 	print "[H[2J";
 
