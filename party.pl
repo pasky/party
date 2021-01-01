@@ -11,9 +11,9 @@ sub ask {
 	return ($val ne '' ? $val : $default);
 }
 
-my $COVID_P_TRANSMISSION = ask('COVID P_transmission', 0.005);
+my $COVID_P_TRANSMISSION = ask('COVID P_transmission %', 0.33) / 100;
 my $COVID_INCUBATION = ask('COVID incubation length', 10);
-my $COVID_P_DEATH = ask('COVID P_death', 0.0002);
+my $COVID_P_DEATH = ask('COVID P_death %', 0.05) / 100;
 my $COVID_LENGTH = ask('COVID disease length', 1000);
 my $COVID_IS_IMMUNITY = ask('COVID lifelong immunity (0/1)', 1);
 my $N_PEOPLE = ask('Number of people (max 36)', 36);
@@ -106,7 +106,8 @@ sub itoa {
 
 sub printi {
 	my $i = shift;
-	my $covid = ($people[$i]->{covid} ? " (covid: " . $people[$i]->{covid} . "f)" : "");
+	my $covid = ($people[$i]->{covid} ? " (covid: " . $people[$i]->{covid} . "f)" :
+			$people[$i]->{immunity} ? " (covid: immune)" :"");
 	print itoa($i) . " ($i): " . join(" ", @_) . $covid . "\n";
 }
 
