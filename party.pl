@@ -16,7 +16,7 @@ my $COVID_INCUBATION = ask('COVID incubation length', 10);
 my $COVID_P_DEATH = ask('COVID P_death %', 0.05) / 100;
 my $COVID_LENGTH = ask('COVID disease length', 1000);
 my $COVID_IS_IMMUNITY = ask('COVID lifelong immunity (0/1)', 1);
-my $N_PEOPLE = ask('Number of people (max 36)', 36);
+my $N_PEOPLE = ask('Number of people (max 62)', 36);
 my $SPEED = ask('Speed', 5);
 
 no warnings;
@@ -100,7 +100,7 @@ sub tile_direction {
 
 sub itoa {
 	my ($i) = @_;
-	my @a = split '', qw(0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz);
+	my @a = split '', qw(0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ);
 	return $a[$i];
 }
 
@@ -184,7 +184,7 @@ while (1) {
 		print "\n";
 	}
 
-	my (@alcohol_dead, @covid_dead);
+	my (@alcohol_dead, @covid_dead, @covid_sick, @covid_immune);
 	for my $i (0..$#people) {
 		if ($people[$i]->{state} eq 'dead') {
 			if ($people[$i]->{covid}) {
@@ -192,9 +192,14 @@ while (1) {
 			} else {
 				push @alcohol_dead, $i;
 			}
+		} elsif ($people[$i]->{covid}) {
+			push @covid_sick, $i;
+		} elsif ($people[$i]->{immunity}) {
+			push @covid_immune, $i;
 		}
 	}
 	print "Casualties total: " . (@covid_dead + @alcohol_dead) . " alcohol: " . (@alcohol_dead) . " covid: " . (@covid_dead) . "\n";
+	print "COVID: " . (@covid_sick) . " sick, " . (@covid_dead) . " dead, " . (@covid_immune) . " immune\n";
 
 	person: for my $i (0..$#people) {
 		my ($dx, $dy);
