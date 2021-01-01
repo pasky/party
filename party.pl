@@ -3,6 +3,14 @@ use warnings;
 use strict;
 use Term::ANSIColor;
 
+my $COVID_P_TRANSMISSION = 0.005;
+my $COVID_INCUBATION = 10;
+my $COVID_P_DEATH = 0.0002;
+my $COVID_LENGTH = 1000;
+my $COVID_IS_IMMUNITY = 1;
+my $N_PEOPLE = 36;
+my $SPEED = 5;
+
 no warnings;
 my $space = [
 # 	[ split '', qw/##############################################################################################/ ],
@@ -23,6 +31,7 @@ my $pspace = [];
 my $hspace = @{$space};
 my $wspace = @{$space->[0]};
 my $nspace = [];
+my @people;
 
 sub wall_at { my ($x, $y) = @_; return ($space->[$y]->[$x] eq '#' or $space->[$y]->[$x] eq '!'); }
 sub free_at { my ($x, $y) = @_; return ($space->[$y]->[$x] ne '#' and $space->[$y]->[$x] ne '!' and $space->[$y]->[$x] ne 'P' and $space->[$y]->[$x] ne '%' and not defined $pspace->[$y]->[$x]); }
@@ -39,6 +48,16 @@ sub swap_people {
 	$people->[$j]->{y} = $y;
 	$pspace->[$y2]->[$x2] = $i;
 	$pspace->[$y]->[$x] = $j;
+}
+
+sub people_around {
+	my ($cx, $cy) = @_;
+	my @people;
+	for my $d ([-1, -1], [1, -1], [-1, 1], [1, 1], [-1, 0], [1, 0],[0, -1], [0, 1]) {
+		my $j = $pspace->[$cy + $d->[0]]->[$cx + $d->[1]];
+		push @people, $j if defined $j;
+	}
+	return @people;
 }
 
 sub tile_direction {
@@ -67,7 +86,7 @@ sub tile_direction {
 			push(@bq, $t2);
 		}
 	}
-	print "no $name :(\n";
+	# print "no $name :(\n";
 	return (0, 0);
 }
 
@@ -79,12 +98,11 @@ sub itoa {
 
 sub printi {
 	my $i = shift;
-	print itoa($i) . " ($i): " . join(" ", @_) . "\n";
+	my $covid = ($people[$i]->{covid} ? " (covid: " . $people[$i]->{covid} . "f)" : "");
+	print itoa($i) . " ($i): " . join(" ", @_) . $covid . "\n";
 }
 
-my $npeople = 36;
-my @people;
-for my $i (0..$npeople-1) {
+for my $i (0..$N_PEOPLE-1) {
 	while (1) {
 		$people[$i]->{x} = int rand($wspace);
 		$people[$i]->{y} = int rand($hspace);
@@ -94,6 +112,8 @@ for my $i (0..$npeople-1) {
 	$pspace->[$people[$i]->{y}]->[$people[$i]->{x}] = $i;
 	$people[$i]->{state} = 'roaming';
 	$people[$i]->{beers} = 0;
+	$people[$i]->{covid} = rand() < 0.05;
+	$people[$i]->{immunity} = 0;
 	$people[$i]->{popularity} = rand() * rand();
 	for my $j (0..$#people) {
 		next if $i == $j;
@@ -104,6 +124,7 @@ for my $i (0..$npeople-1) {
 	}
 }
 $people[0]->{popularity} = 1;
+$people[int rand(@people)]->{covid} = 1;
 
 my @nomplaces;
 my $nomcap = 4;
@@ -119,7 +140,7 @@ my $nomcounter = 0;
 
 while (1) {
 	use Time::HiRes;
-	Time::HiRes::usleep(200000);
+	Time::HiRes::usleep(1000000 / $SPEED);
 
 	print "[H[2J";
 
@@ -127,6 +148,11 @@ while (1) {
 		for my $x (0..$wspace-1) {
 			if (defined $pspace->[$y]->[$x]) {
 				my $i = $pspace->[$y]->[$x];
+				if ($people[$i]->{covid} > $COVID_INCUBATION) {
+					print color("on_magenta");
+				} elsif ($people[$i]->{covid}) {
+					print color("on_yellow");
+				}
 				if ($i == 0) {
 					print color("bright_white");
 				} elsif ($people[$i]->{state} eq 'toilet') {
@@ -141,7 +167,7 @@ while (1) {
 					print color("green");
 				}
 				print itoa($pspace->[$y]->[$x]);
-				print color("white");
+				print color("reset");
 			} else {
 				print $space->[$y]->[$x];
 			}
@@ -149,12 +175,48 @@ while (1) {
 		print "\n";
 	}
 
+	my (@alcohol_dead, @covid_dead);
+	for my $i (0..$#people) {
+		if ($people[$i]->{state} eq 'dead') {
+			if ($people[$i]->{covid}) {
+				push @covid_dead, $i;
+			} else {
+				push @alcohol_dead, $i;
+			}
+		}
+	}
+	print "Casualties total: " . (@covid_dead + @alcohol_dead) . " alcohol: " . (@alcohol_dead) . " covid: " . (@covid_dead) . "\n";
+
 	person: for my $i (0..$#people) {
 		my ($dx, $dy);
 
 		if ($people[$i]->{state} eq 'dead') {
 			printi($i, "dead");
 			next person;
+		}
+
+		if ($people[$i]->{covid} > $COVID_LENGTH) {
+			$people[$i]->{covid} = 0;
+			$people[$i]->{immunity} = $COVID_IS_IMMUNITY;
+		} elsif ($people[$i]->{covid} > $COVID_INCUBATION) {
+			my @victims = people_around($people[$i]->{x}, $people[$i]->{y});
+			for my $j (@victims) {
+				if (rand() < $COVID_P_TRANSMISSION and not $people[$j]->{covid} and not $people[$j]->{immunity}) {
+					$people[$j]->{covid} = 1;
+					printi($i, "spreading COVID to $j");
+					Time::HiRes::usleep(2000000);
+				}
+			}
+			if (rand() < $COVID_P_DEATH) {
+				printi($i, "dead after $people[$i]->{covid} frames with COVID");
+				$people[$i]->{state} = 'dead';
+				undef $pspace->[$people[$i]->{y}]->[$people[$i]->{x}];
+				$space->[$people[$i]->{y}]->[$people[$i]->{x}] = '+';
+				next person;
+			}
+		}
+		if ($people[$i]->{covid}) {
+			$people[$i]->{covid}++;
 		}
 
 		if ($people[$i]->{state} eq 'beer') {
@@ -202,7 +264,7 @@ nom:
 			}
 			($dx, $dy) = tile_direction($people[$i]->{x}, $people[$i]->{y}, '%', 'nom');
 			unless ($dx or $dy) {
-				printi($i, "no nom");
+				# printi($i, "no nom");
 				$people[$i]->{state} = 'roaming';
 				goto roaming;
 			}
@@ -238,7 +300,7 @@ toilet:
 					printi($i, "DIED");
 					next person;
 				} else {
-					printi($i, "in deadly danger: " . $people[$i]->{beers});
+					# printi($i, "in deadly danger: " . $people[$i]->{beers});
 				}
 			}
 			# if (rand() < 0.05) {
